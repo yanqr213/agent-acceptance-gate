@@ -1,0 +1,20 @@
+{
+  "summary": "Add stricter validation to the local acceptance gate CLI.",
+  "owner": "platform-quality",
+  "rollback_plan": "Revert the CLI validation commit and rerun the previous release package.",
+  "risk_statement": "Low operational risk. The change is local-only and does not modify production services.",
+  "changed_files": [
+    "src/agent_acceptance_gate/cli.py",
+    "src/agent_acceptance_gate/rules.py",
+    "tests/test_rules.py"
+  ],
+  "declared_impacts": [],
+  "tests": [
+    {
+      "command": "python -m unittest discover -s tests",
+      "status": "passed",
+      "output": "Ran 24 tests in 0.15s"
+    }
+  ],
+  "diff_summary": "CLI validates packets, evaluates rules, and renders reports."
+}

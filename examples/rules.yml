@@ -1,0 +1,35 @@
+required_tests: true
+required_fields:
+  - summary
+  - risk_statement
+require_owner: true
+require_rollback_plan: true
+risk_path_globs:
+  - "**/auth/**"
+  - "**/security/**"
+  - "**/payment/**"
+  - "**/billing/**"
+  - "**/migrations/**"
+  - "**/.github/workflows/**"
+forbidden_paths:
+  - "**/.env"
+  - "**/*.pem"
+  - "**/*.key"
+impact_file_globs:
+  public_api:
+    - "**/api/**"
+    - "**/routes/**"
+    - "**/openapi.*"
+  database:
+    - "**/migrations/**"
+    - "**/db/**"
+  schema:
+    - "**/schema/**"
+    - "**/*.schema.json"
+  config:
+    - "**/*.toml"
+    - "**/*.yml"
+    - "**/*.yaml"
+    - "**/.github/workflows/**"
+scan_secrets: true
+scan_pii: true

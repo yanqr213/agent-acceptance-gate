@@ -1,0 +1,49 @@
+import argparse
+import sys
+
+from .parser import load_packet, load_rules
+from .report import render, write_report
+from .rules import evaluate
+
+
+def build_parser():
+    parser = argparse.ArgumentParser(
+        prog="agent-acceptance-gate",
+        description="Offline acceptance gate for AI coding agent deliveries.",
+    )
+    parser.add_argument("--packet", required=True, help="Acceptance packet path: JSON, YAML-lite, or Markdown.")
+    parser.add_argument("--rules", help="Rule configuration path: JSON or YAML-lite.")
+    parser.add_argument("--format", choices=["markdown", "json", "junit"], default="markdown", help="Report format.")
+    parser.add_argument("--output", help="Write report to this path. Parent directories are created.")
+    parser.add_argument(
+        "--check",
+        choices=["warning", "error"],
+        help="Exit non-zero when warnings or errors are present.",
+    )
+    return parser
+
+
+def main(argv=None):
+    args = build_parser().parse_args(argv)
+    try:
+        packet = load_packet(args.packet)
+        rules = load_rules(args.rules)
+        result = evaluate(packet, rules)
+        if args.output:
+            content = write_report(result, args.format, args.output)
+        else:
+            content = render(result, args.format)
+        if not args.output:
+            sys.stdout.write(content)
+        if args.check == "error" and result.error_count:
+            return 1
+        if args.check == "warning" and (result.error_count or result.warning_count):
+            return 1
+        return 0
+    except Exception as exc:
+        sys.stderr.write("agent-acceptance-gate: %s\n" % exc)
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
