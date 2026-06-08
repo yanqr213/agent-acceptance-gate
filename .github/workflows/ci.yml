@@ -23,3 +23,7 @@ jobs:
         run: |
           agent-acceptance-gate --packet examples/acceptance-packet.json --rules examples/rules.yml --format sarif --output reports/agent-acceptance-gate.sarif
           python -m json.tool reports/agent-acceptance-gate.sarif > /dev/null
+          agent-acceptance-gate --packet examples/acceptance-packet.json --rules examples/rules.yml --write-baseline reports/agent-acceptance-baseline.json
+          python -m json.tool reports/agent-acceptance-baseline.json > /dev/null
+          agent-acceptance-gate --packet examples/acceptance-packet.json --rules examples/rules.yml --baseline reports/agent-acceptance-baseline.json --check warning --format json --output reports/agent-acceptance-filtered.json
+          python -m json.tool reports/agent-acceptance-filtered.json > /dev/null

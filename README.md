@@ -11,6 +11,7 @@
 - 需要在 CI 中检查高风险路径、禁止路径、未声明的 API/DB/schema/config 变更。
 - 需要扫描验收包中的 secret 或 PII 痕迹。
 - 需要把验收结果输出为 Markdown 给人读，JSON 给系统读，JUnit 给 CI 展示，SARIF 给 GitHub Code Scanning 或安全看板消费。
+- 需要用 baseline 记录已复核的历史验收 finding，让 CI 只拦截新增 warning/error。
 
 ## 快速开始
 
@@ -25,6 +26,13 @@ python -m agent_acceptance_gate --packet examples/acceptance-packet.json --rules
 agent-acceptance-gate --packet examples/acceptance-packet.md --rules examples/rules.yml --format json
 agent-acceptance-gate --packet examples/acceptance-packet.json --rules examples/rules.yml --format sarif --output reports/aag.sarif
 aag --packet examples/acceptance-packet.json --check warning
+```
+
+生成并使用 reviewed baseline：
+
+```bash
+agent-acceptance-gate --packet examples/acceptance-packet.json --rules examples/rules.yml --write-baseline reports/aag-baseline.json
+agent-acceptance-gate --packet examples/acceptance-packet.json --rules examples/rules.yml --baseline reports/aag-baseline.json --check warning
 ```
 
 ## 输入格式
@@ -129,6 +137,25 @@ agent-acceptance-gate \
 
 输出文件的父目录会自动创建。
 
+如果已有仓库首次接入时存在一批已复核 warning，可以先生成 baseline，再在后续 CI 中消费它：
+
+```bash
+agent-acceptance-gate \
+  --packet acceptance-packet.json \
+  --rules acceptance-rules.yml \
+  --write-baseline reports/agent-acceptance-baseline.json
+
+agent-acceptance-gate \
+  --packet acceptance-packet.json \
+  --rules acceptance-rules.yml \
+  --baseline reports/agent-acceptance-baseline.json \
+  --format json \
+  --output reports/agent-acceptance-gate.json \
+  --check warning
+```
+
+baseline 是可审阅、可提交的 JSON 文件，包含 `rule_id`、`path`、`title`、`message` 和稳定 `fingerprint`。不要在同一个阻断型 CI run 中先生成 baseline 再扫描当前交付，否则当前 finding 会被直接放过。
+
 GitHub Actions 中可以把 SARIF 上传到 Code Scanning：
 
 ```yaml
@@ -179,7 +206,7 @@ JSON：
 }
 ```
 
-JUnit 输出适合上传到 CI 测试报告视图；error 会渲染为 `<failure>`，warning 会渲染为 `<system-out>`。SARIF 输出适合把 risky path、forbidden path、敏感信息和未声明影响作为 code scanning alert 展示。
+JUnit 输出适合上传到 CI 测试报告视图；error 会渲染为 `<failure>`，warning 会渲染为 `<system-out>`。SARIF 输出适合把 risky path、forbidden path、敏感信息和未声明影响作为 code scanning alert 展示。使用 baseline 后，Markdown、JSON、JUnit 和 SARIF 都会保留 suppressed finding 统计或明细，方便后续清理历史例外。
 
 ## 和 handoff 工具的边界
 
@@ -194,6 +221,7 @@ JUnit 输出适合上传到 CI 测试报告视图；error 会渲染为 `<failure
 - YAML-lite 不是完整 YAML 标准实现，不支持锚点、复杂 tag 或多文档流。
 - Diff summary 只按输入内容判断；CLI 不会主动连接远程服务，也不会请求 GitHub token。
 - 规则结果服务于验收决策，不替代人工代码评审。
+- baseline 是审计文件，不是永久忽略规则；请像维护安全例外一样审阅和定期清理。
 
 ## 维护说明
 
@@ -217,6 +245,7 @@ It is intentionally different from `agent-handoff-kit`: handoff tooling focuses 
 - CI checks for risky paths, forbidden paths, and undisclosed API, database, schema, or configuration changes.
 - Heuristic scanning for secrets and personal data in the acceptance packet.
 - Human-readable Markdown, machine-readable JSON, CI-friendly JUnit, and GitHub Code Scanning friendly SARIF output.
+- Reviewed baselines for accepted historical gate findings, while still failing CI on new findings.
 
 ## Quick Start
 
@@ -231,6 +260,13 @@ Installed commands:
 agent-acceptance-gate --packet examples/acceptance-packet.md --rules examples/rules.yml --format json
 agent-acceptance-gate --packet examples/acceptance-packet.json --rules examples/rules.yml --format sarif --output reports/aag.sarif
 aag --packet examples/acceptance-packet.json --check warning
+```
+
+Baseline workflow:
+
+```bash
+agent-acceptance-gate --packet examples/acceptance-packet.json --rules examples/rules.yml --write-baseline reports/aag-baseline.json
+agent-acceptance-gate --packet examples/acceptance-packet.json --rules examples/rules.yml --baseline reports/aag-baseline.json --check warning
 ```
 
 ## Input Format
@@ -258,6 +294,8 @@ agent-acceptance-gate \
 
 The CLI creates the output parent directory automatically.
 
+Reviewed baseline JSON files contain stable fingerprints for accepted findings. Commit or otherwise review the baseline before using it in CI; do not generate and consume a baseline in the same blocking CI run.
+
 GitHub Actions can upload SARIF to Code Scanning:
 
 ```yaml
@@ -279,7 +317,7 @@ steps:
 
 ## Output
 
-Markdown reports summarize status, counts, findings, tests, and changed files. JSON reports provide stable structured fields for automation. JUnit reports render errors as failures and warnings as system output. SARIF reports map gate findings to code scanning results so risky paths, forbidden files, sensitive-data findings, and undeclared impacts can appear in security dashboards.
+Markdown reports summarize status, counts, findings, tests, and changed files. JSON reports provide stable structured fields for automation. JUnit reports render errors as failures and warnings as system output. SARIF reports map gate findings to code scanning results so risky paths, forbidden files, sensitive-data findings, and undeclared impacts can appear in security dashboards. Suppressed baseline findings remain visible in report metadata for audit and cleanup.
 
 ## Boundary with Handoff Tools
 

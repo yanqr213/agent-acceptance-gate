@@ -33,6 +33,7 @@ class Finding:
     title: str
     message: str
     path: Optional[str] = None
+    fingerprint: str = ""
 
 
 @dataclass
@@ -40,6 +41,7 @@ class GateResult:
     status: str
     findings: List[Finding]
     packet: AcceptancePacket
+    suppressed_findings: List[Finding] = field(default_factory=list)
 
     @property
     def error_count(self):

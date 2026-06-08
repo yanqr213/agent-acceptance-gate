@@ -2,6 +2,8 @@ import json
 import os
 from xml.sax.saxutils import escape
 
+from . import __version__
+
 
 def render(result, fmt):
     name = (fmt or "markdown").lower()
@@ -34,6 +36,7 @@ def render_markdown(result):
         "- Status: `%s`" % result.status,
         "- Errors: `%s`" % result.error_count,
         "- Warnings: `%s`" % result.warning_count,
+        "- Suppressed by baseline: `%s`" % len(result.suppressed_findings),
         "- Changed files: `%s`" % len(result.packet.changed_files),
         "- Tests: `%s`" % len(result.packet.tests),
         "",
@@ -49,8 +52,20 @@ def render_markdown(result):
                 location,
                 finding.message,
             ))
+            lines.append("  - Fingerprint: `%s`" % finding.fingerprint)
     else:
         lines.extend(["## Findings", "", "No findings."])
+    if result.suppressed_findings:
+        lines.extend(["", "## Suppressed By Baseline", ""])
+        for finding in result.suppressed_findings:
+            location = " (%s)" % finding.path if finding.path else ""
+            lines.append("- **[%s] %s** `%s`%s - `%s`" % (
+                finding.severity.upper(),
+                finding.title,
+                finding.rule_id,
+                location,
+                finding.fingerprint,
+            ))
     lines.extend(["", "## Tests", ""])
     if result.packet.tests:
         for test in result.packet.tests:
@@ -73,6 +88,7 @@ def render_json(result):
         "summary": {
             "errors": result.error_count,
             "warnings": result.warning_count,
+            "suppressed": len(result.suppressed_findings),
             "changed_files": len(result.packet.changed_files),
             "tests": len(result.packet.tests),
         },
@@ -83,8 +99,20 @@ def render_json(result):
                 "title": item.title,
                 "message": item.message,
                 "path": item.path,
+                "fingerprint": item.fingerprint,
             }
             for item in result.findings
+        ],
+        "suppressed_findings": [
+            {
+                "rule_id": item.rule_id,
+                "severity": item.severity,
+                "title": item.title,
+                "message": item.message,
+                "path": item.path,
+                "fingerprint": item.fingerprint,
+            }
+            for item in result.suppressed_findings
         ],
         "tests": [
             {
@@ -101,13 +129,14 @@ def render_json(result):
 def render_junit(result):
     tests = result.findings or []
     failures = len([item for item in tests if item.severity == "error"])
-    skipped = 0
-    if not tests:
+    skipped = len(result.suppressed_findings)
+    if not tests and not result.suppressed_findings:
         tests = [None]
+    test_count = len(tests) + skipped
     lines = [
         '<?xml version="1.0" encoding="utf-8"?>',
         '<testsuite name="agent-acceptance-gate" tests="%s" failures="%s" skipped="%s">' % (
-            len(tests),
+            test_count,
             failures,
             skipped,
         ),
@@ -125,6 +154,11 @@ def render_junit(result):
             ))
         elif item.severity == "warning":
             lines.append('    <system-out>%s</system-out>' % escape(item.message))
+        lines.append("  </testcase>")
+    for item in result.suppressed_findings:
+        case_name = escape("suppressed:%s" % item.rule_id)
+        lines.append('  <testcase classname="agent_acceptance_gate" name="%s">' % case_name)
+        lines.append('    <skipped message="suppressed by baseline">%s</skipped>' % escape(item.fingerprint))
         lines.append("  </testcase>")
     lines.append("</testsuite>")
     return "\n".join(lines) + "\n"
@@ -155,6 +189,7 @@ def render_sarif(result):
                 "ruleId": finding.rule_id,
                 "level": sarif_level(finding.severity),
                 "message": {"text": finding.message},
+                "partialFingerprints": {"agentAcceptanceGate/v1": finding.fingerprint},
                 "locations": [location],
                 "properties": {
                     "severity": finding.severity,
@@ -171,15 +206,28 @@ def render_sarif(result):
                 "tool": {
                     "driver": {
                         "name": "agent-acceptance-gate",
+                        "semanticVersion": __version__,
                         "informationUri": "https://github.com/yanqr213/agent-acceptance-gate",
                         "rules": list(rules.values()),
                     }
                 },
+                "automationDetails": {"id": "agent-acceptance-gate"},
                 "results": sarif_results,
                 "properties": {
                     "status": result.status,
                     "errors": result.error_count,
                     "warnings": result.warning_count,
+                    "suppressed": len(result.suppressed_findings),
+                    "suppressed_findings": [
+                        {
+                            "rule_id": item.rule_id,
+                            "severity": item.severity,
+                            "title": item.title,
+                            "path": item.path,
+                            "fingerprint": item.fingerprint,
+                        }
+                        for item in result.suppressed_findings
+                    ],
                     "changed_files": len(result.packet.changed_files),
                     "tests": len(result.packet.tests),
                 },

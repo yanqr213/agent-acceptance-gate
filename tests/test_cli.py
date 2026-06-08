@@ -35,7 +35,7 @@ class CliTests(unittest.TestCase):
     def test_version(self):
         result = self.run_cli(["--version"])
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("agent-acceptance-gate 0.2.0", result.stdout)
+        self.assertIn("agent-acceptance-gate 0.3.0", result.stdout)
 
     def test_check_error_exit_code_passes_without_errors(self):
         packet = self.write_packet({
@@ -60,6 +60,26 @@ class CliTests(unittest.TestCase):
         })
         result = self.run_cli(["--packet", packet, "--check", "warning"])
         self.assertEqual(result.returncode, 1)
+
+    def test_baseline_suppresses_known_warning_for_check(self):
+        packet = self.write_packet({
+            "summary": "Change",
+            "owner": "quality",
+            "rollback_plan": "revert",
+            "risk_statement": "low",
+            "changed_files": ["service/auth/login.py"],
+            "tests": [{"command": "python -m unittest", "status": "passed"}],
+        })
+        baseline = os.path.join(self.tmp, "baseline.json")
+        output = os.path.join(self.tmp, "report.json")
+        write_result = self.run_cli(["--packet", packet, "--write-baseline", baseline])
+        self.assertEqual(write_result.returncode, 0, write_result.stderr)
+        result = self.run_cli(["--packet", packet, "--baseline", baseline, "--check", "warning", "--format", "json", "--output", output])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        with open(output, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        self.assertEqual([], payload["findings"])
+        self.assertEqual(1, payload["summary"]["suppressed"])
 
     def test_output_parent_directory_is_created(self):
         packet = self.write_packet({

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0 - 2026-06-08
+
+- Added reviewed baseline JSON output for accepted gate findings.
+- Added `--baseline` filtering and `--write-baseline` support.
+- Added stable finding fingerprints and suppressed-finding metadata to Markdown, JSON, JUnit, and SARIF reports.
+- Added CI smoke coverage for baseline generation and filtered checks.
+
 ## 0.2.0 - 2026-06-08
 
 - Added SARIF 2.1.0 report output for GitHub Code Scanning and security dashboards.

@@ -6,6 +6,7 @@ import unittest
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 from agent_acceptance_gate.models import AcceptancePacket, Finding, GateResult, TestResult
+from agent_acceptance_gate.baseline import apply_baseline, render_baseline
 from agent_acceptance_gate.report import render_json, render_junit, render_markdown, render_sarif
 
 
@@ -26,11 +27,13 @@ class ReportTests(unittest.TestCase):
         text = render_markdown(self.result())
         self.assertIn("# Agent Acceptance Gate Report", text)
         self.assertIn("tests-required", text)
+        self.assertIn("Fingerprint", text)
 
     def test_json_is_machine_readable(self):
         payload = json.loads(render_json(self.result()))
         self.assertEqual(payload["status"], "fail")
         self.assertEqual(payload["findings"][0]["severity"], "error")
+        self.assertIn("fingerprint", payload["findings"][0])
 
     def test_junit_contains_failure(self):
         text = render_junit(self.result())
@@ -42,8 +45,23 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(payload["version"], "2.1.0")
         run = payload["runs"][0]
         self.assertEqual(run["tool"]["driver"]["name"], "agent-acceptance-gate")
+        self.assertEqual(run["tool"]["driver"]["semanticVersion"], "0.3.0")
         self.assertEqual(run["results"][0]["ruleId"], "tests-required")
         self.assertEqual(run["results"][0]["level"], "error")
+        self.assertIn("agentAcceptanceGate/v1", run["results"][0]["partialFingerprints"])
+
+    def test_reports_include_suppressed_findings(self):
+        result = self.result()
+        baseline = json.loads(render_baseline(result))
+        filtered = apply_baseline(result, {item["fingerprint"] for item in baseline["findings"]})
+
+        self.assertIn("Suppressed By Baseline", render_markdown(filtered))
+        self.assertEqual(1, json.loads(render_json(filtered))["summary"]["suppressed"])
+        junit = render_junit(filtered)
+        self.assertIn("tests=\"1\"", junit)
+        self.assertIn("skipped=\"1\"", junit)
+        sarif = json.loads(render_sarif(filtered))
+        self.assertEqual(1, sarif["runs"][0]["properties"]["suppressed"])
 
 
 if __name__ == "__main__":

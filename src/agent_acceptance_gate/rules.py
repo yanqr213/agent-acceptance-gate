@@ -1,5 +1,6 @@
 from copy import deepcopy
 
+from .baseline import attach_fingerprints
 from .globber import any_match
 from .models import DEFAULT_RULES, Finding, GateResult
 from .scanner import packet_scan_text, scan_text
@@ -38,7 +39,7 @@ def evaluate(packet, custom_rules=None):
     _check_impacts(packet, rules, findings)
     _check_sensitive_data(packet, rules, findings)
     status = "fail" if any(item.severity == "error" for item in findings) else "pass"
-    return GateResult(status=status, findings=findings, packet=packet)
+    return attach_fingerprints(GateResult(status=status, findings=findings, packet=packet))
 
 
 def _check_required_fields(packet, rules, findings):
