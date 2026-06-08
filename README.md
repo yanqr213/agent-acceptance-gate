@@ -1,6 +1,6 @@
 # agent-acceptance-gate
 
-离线 CLI，用来对一次 AI coding agent 交付做验收门禁。它读取 agent 提供的验收包、变更文件、测试结果、风险声明和规则配置，输出 Markdown、JSON 或 JUnit 报告，并可在 CI 中用 `--check` 阻断不合格交付。
+离线 CLI，用来对一次 AI coding agent 交付做验收门禁。它读取 agent 提供的验收包、变更文件、测试结果、风险声明和规则配置，输出 Markdown、JSON、JUnit 或 SARIF 报告，并可在 CI 中用 `--check` 阻断不合格交付。
 
 本项目和 `agent-handoff-kit` 的边界很清楚：handoff 工具关注“交接包是否完整、上下文是否能传给下一个人或 agent”，`agent-acceptance-gate` 关注“这次交付能不能过团队验收门禁”。
 
@@ -10,7 +10,7 @@
 - 需要离线检查 agent 交付是否写明测试、风险、owner 和 rollback plan。
 - 需要在 CI 中检查高风险路径、禁止路径、未声明的 API/DB/schema/config 变更。
 - 需要扫描验收包中的 secret 或 PII 痕迹。
-- 需要把验收结果输出为 Markdown 给人读，JSON 给系统读，JUnit 给 CI 展示。
+- 需要把验收结果输出为 Markdown 给人读，JSON 给系统读，JUnit 给 CI 展示，SARIF 给 GitHub Code Scanning 或安全看板消费。
 
 ## 快速开始
 
@@ -23,6 +23,7 @@ python -m agent_acceptance_gate --packet examples/acceptance-packet.json --rules
 
 ```bash
 agent-acceptance-gate --packet examples/acceptance-packet.md --rules examples/rules.yml --format json
+agent-acceptance-gate --packet examples/acceptance-packet.json --rules examples/rules.yml --format sarif --output reports/aag.sarif
 aag --packet examples/acceptance-packet.json --check warning
 ```
 
@@ -121,12 +122,31 @@ scan_pii: true
 agent-acceptance-gate \
   --packet acceptance-packet.json \
   --rules acceptance-rules.yml \
-  --format junit \
-  --output reports/agent-acceptance-gate.xml \
+  --format sarif \
+  --output reports/agent-acceptance-gate.sarif \
   --check warning
 ```
 
 输出文件的父目录会自动创建。
+
+GitHub Actions 中可以把 SARIF 上传到 Code Scanning：
+
+```yaml
+permissions:
+  contents: read
+  security-events: write
+steps:
+  - uses: actions/checkout@v4
+  - uses: actions/setup-python@v5
+    with:
+      python-version: "3.12"
+  - run: python -m pip install .
+  - run: agent-acceptance-gate --packet acceptance-packet.json --rules acceptance-rules.yml --format sarif --output reports/aag.sarif --check error
+  - uses: github/codeql-action/upload-sarif@v3
+    if: always()
+    with:
+      sarif_file: reports/aag.sarif
+```
 
 ## 输出示例
 
@@ -159,7 +179,7 @@ JSON：
 }
 ```
 
-JUnit 输出适合上传到 CI 测试报告视图；error 会渲染为 `<failure>`，warning 会渲染为 `<system-out>`。
+JUnit 输出适合上传到 CI 测试报告视图；error 会渲染为 `<failure>`，warning 会渲染为 `<system-out>`。SARIF 输出适合把 risky path、forbidden path、敏感信息和未声明影响作为 code scanning alert 展示。
 
 ## 和 handoff 工具的边界
 
@@ -186,7 +206,7 @@ JUnit 输出适合上传到 CI 测试报告视图；error 会渲染为 `<failure
 
 # English
 
-`agent-acceptance-gate` is an offline CLI for acceptance-gating AI coding agent deliveries. It reads an acceptance packet, changed files, test command results, risk statements, diff summaries, and rule configuration. It emits Markdown, JSON, or JUnit reports and supports CI blocking through `--check`.
+`agent-acceptance-gate` is an offline CLI for acceptance-gating AI coding agent deliveries. It reads an acceptance packet, changed files, test command results, risk statements, diff summaries, and rule configuration. It emits Markdown, JSON, JUnit, or SARIF reports and supports CI blocking through `--check`.
 
 It is intentionally different from `agent-handoff-kit`: handoff tooling focuses on transferring context and next steps, while this project focuses on deciding whether a delivered change passes acceptance gates.
 
@@ -196,7 +216,7 @@ It is intentionally different from `agent-handoff-kit`: handoff tooling focuses 
 - Offline validation that a delivery includes tests, owner, rollback plan, and risk statement.
 - CI checks for risky paths, forbidden paths, and undisclosed API, database, schema, or configuration changes.
 - Heuristic scanning for secrets and personal data in the acceptance packet.
-- Human-readable Markdown, machine-readable JSON, and CI-friendly JUnit output.
+- Human-readable Markdown, machine-readable JSON, CI-friendly JUnit, and GitHub Code Scanning friendly SARIF output.
 
 ## Quick Start
 
@@ -209,6 +229,7 @@ Installed commands:
 
 ```bash
 agent-acceptance-gate --packet examples/acceptance-packet.md --rules examples/rules.yml --format json
+agent-acceptance-gate --packet examples/acceptance-packet.json --rules examples/rules.yml --format sarif --output reports/aag.sarif
 aag --packet examples/acceptance-packet.json --check warning
 ```
 
@@ -230,16 +251,35 @@ Rules include required tests, required fields, owner, rollback plan, risky path 
 agent-acceptance-gate \
   --packet acceptance-packet.json \
   --rules acceptance-rules.yml \
-  --format junit \
-  --output reports/agent-acceptance-gate.xml \
+  --format sarif \
+  --output reports/agent-acceptance-gate.sarif \
   --check warning
 ```
 
 The CLI creates the output parent directory automatically.
 
+GitHub Actions can upload SARIF to Code Scanning:
+
+```yaml
+permissions:
+  contents: read
+  security-events: write
+steps:
+  - uses: actions/checkout@v4
+  - uses: actions/setup-python@v5
+    with:
+      python-version: "3.12"
+  - run: python -m pip install .
+  - run: agent-acceptance-gate --packet acceptance-packet.json --rules acceptance-rules.yml --format sarif --output reports/aag.sarif --check error
+  - uses: github/codeql-action/upload-sarif@v3
+    if: always()
+    with:
+      sarif_file: reports/aag.sarif
+```
+
 ## Output
 
-Markdown reports summarize status, counts, findings, tests, and changed files. JSON reports provide stable structured fields for automation. JUnit reports render errors as failures and warnings as system output.
+Markdown reports summarize status, counts, findings, tests, and changed files. JSON reports provide stable structured fields for automation. JUnit reports render errors as failures and warnings as system output. SARIF reports map gate findings to code scanning results so risky paths, forbidden files, sensitive-data findings, and undeclared impacts can appear in security dashboards.
 
 ## Boundary with Handoff Tools
 

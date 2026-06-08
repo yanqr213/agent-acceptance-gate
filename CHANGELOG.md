@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0 - 2026-06-08
+
+- Added SARIF 2.1.0 report output for GitHub Code Scanning and security dashboards.
+- Added `--version` CLI support.
+- Added package URL metadata.
+- Added tests for SARIF output and path normalization.
+- Expanded Chinese and English README documentation for SARIF workflows.
+
 ## 0.1.0 - 2026-06-08
 
 - Initial local release.

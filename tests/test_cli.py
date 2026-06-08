@@ -32,6 +32,11 @@ class CliTests(unittest.TestCase):
             env=env,
         )
 
+    def test_version(self):
+        result = self.run_cli(["--version"])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("agent-acceptance-gate 0.2.0", result.stdout)
+
     def test_check_error_exit_code_passes_without_errors(self):
         packet = self.write_packet({
             "summary": "Change",
@@ -69,6 +74,23 @@ class CliTests(unittest.TestCase):
         result = self.run_cli(["--packet", packet, "--format", "json", "--output", output])
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(os.path.exists(output))
+
+    def test_sarif_output_file(self):
+        packet = self.write_packet({
+            "summary": "Change",
+            "owner": "quality",
+            "rollback_plan": "revert",
+            "risk_statement": "low",
+            "changed_files": ["service\\auth\\login.py"],
+            "tests": [{"command": "python -m unittest", "status": "passed"}],
+        })
+        output = os.path.join(self.tmp, "reports", "gate.sarif")
+        result = self.run_cli(["--packet", packet, "--format", "sarif", "--output", output])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        with open(output, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        uri = payload["runs"][0]["results"][0]["locations"][0]["physicalLocation"]["artifactLocation"]["uri"]
+        self.assertEqual(uri, "service/auth/login.py")
 
 
 if __name__ == "__main__":

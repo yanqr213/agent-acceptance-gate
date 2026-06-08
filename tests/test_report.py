@@ -6,7 +6,7 @@ import unittest
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 from agent_acceptance_gate.models import AcceptancePacket, Finding, GateResult, TestResult
-from agent_acceptance_gate.report import render_json, render_junit, render_markdown
+from agent_acceptance_gate.report import render_json, render_junit, render_markdown, render_sarif
 
 
 class ReportTests(unittest.TestCase):
@@ -36,6 +36,14 @@ class ReportTests(unittest.TestCase):
         text = render_junit(self.result())
         self.assertIn("<testsuite", text)
         self.assertIn("<failure", text)
+
+    def test_sarif_contains_findings(self):
+        payload = json.loads(render_sarif(self.result()))
+        self.assertEqual(payload["version"], "2.1.0")
+        run = payload["runs"][0]
+        self.assertEqual(run["tool"]["driver"]["name"], "agent-acceptance-gate")
+        self.assertEqual(run["results"][0]["ruleId"], "tests-required")
+        self.assertEqual(run["results"][0]["level"], "error")
 
 
 if __name__ == "__main__":

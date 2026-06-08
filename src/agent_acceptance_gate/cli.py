@@ -1,6 +1,7 @@
 import argparse
 import sys
 
+from . import __version__
 from .parser import load_packet, load_rules
 from .report import render, write_report
 from .rules import evaluate
@@ -11,9 +12,10 @@ def build_parser():
         prog="agent-acceptance-gate",
         description="Offline acceptance gate for AI coding agent deliveries.",
     )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--packet", required=True, help="Acceptance packet path: JSON, YAML-lite, or Markdown.")
     parser.add_argument("--rules", help="Rule configuration path: JSON or YAML-lite.")
-    parser.add_argument("--format", choices=["markdown", "json", "junit"], default="markdown", help="Report format.")
+    parser.add_argument("--format", choices=["markdown", "json", "junit", "sarif"], default="markdown", help="Report format.")
     parser.add_argument("--output", help="Write report to this path. Parent directories are created.")
     parser.add_argument(
         "--check",

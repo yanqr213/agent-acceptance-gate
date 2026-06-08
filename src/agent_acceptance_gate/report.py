@@ -11,6 +11,8 @@ def render(result, fmt):
         return render_json(result)
     if name == "junit":
         return render_junit(result)
+    if name == "sarif":
+        return render_sarif(result)
     raise ValueError("Unsupported report format: %s" % fmt)
 
 
@@ -126,3 +128,74 @@ def render_junit(result):
         lines.append("  </testcase>")
     lines.append("</testsuite>")
     return "\n".join(lines) + "\n"
+
+
+def render_sarif(result):
+    rules = {}
+    sarif_results = []
+    for finding in result.findings:
+        rules.setdefault(
+            finding.rule_id,
+            {
+                "id": finding.rule_id,
+                "name": finding.title,
+                "shortDescription": {"text": finding.title},
+                "fullDescription": {"text": finding.message},
+                "defaultConfiguration": {"level": sarif_level(finding.severity)},
+            },
+        )
+        location = {
+            "physicalLocation": {
+                "artifactLocation": {"uri": normalize_uri(finding.path) if finding.path else "acceptance-packet"},
+                "region": {"startLine": 1},
+            }
+        }
+        sarif_results.append(
+            {
+                "ruleId": finding.rule_id,
+                "level": sarif_level(finding.severity),
+                "message": {"text": finding.message},
+                "locations": [location],
+                "properties": {
+                    "severity": finding.severity,
+                    "title": finding.title,
+                    "path": finding.path,
+                },
+            }
+        )
+    payload = {
+        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [
+            {
+                "tool": {
+                    "driver": {
+                        "name": "agent-acceptance-gate",
+                        "informationUri": "https://github.com/yanqr213/agent-acceptance-gate",
+                        "rules": list(rules.values()),
+                    }
+                },
+                "results": sarif_results,
+                "properties": {
+                    "status": result.status,
+                    "errors": result.error_count,
+                    "warnings": result.warning_count,
+                    "changed_files": len(result.packet.changed_files),
+                    "tests": len(result.packet.tests),
+                },
+            }
+        ],
+    }
+    return json.dumps(payload, indent=2, sort_keys=True) + "\n"
+
+
+def sarif_level(severity):
+    if severity == "error":
+        return "error"
+    if severity == "warning":
+        return "warning"
+    return "note"
+
+
+def normalize_uri(path):
+    return str(path).replace("\\", "/")

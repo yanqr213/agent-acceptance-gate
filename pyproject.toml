@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-acceptance-gate"
-version = "0.1.0"
+version = "0.2.0"
 description = "Offline acceptance gate for AI coding agent deliveries."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -30,6 +30,12 @@ dependencies = []
 [project.scripts]
 agent-acceptance-gate = "agent_acceptance_gate.cli:main"
 aag = "agent_acceptance_gate.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/yanqr213/agent-acceptance-gate"
+Repository = "https://github.com/yanqr213/agent-acceptance-gate"
+Issues = "https://github.com/yanqr213/agent-acceptance-gate/issues"
+Changelog = "https://github.com/yanqr213/agent-acceptance-gate/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 where = ["src"]
