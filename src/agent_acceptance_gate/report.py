@@ -3,6 +3,7 @@ import os
 from xml.sax.saxutils import escape
 
 from . import __version__
+from .remediation import render_remediation_json, render_remediation_markdown
 
 
 def render(result, fmt):
@@ -15,6 +16,10 @@ def render(result, fmt):
         return render_junit(result)
     if name == "sarif":
         return render_sarif(result)
+    if name in ("remediation", "remediation-md"):
+        return render_remediation_markdown(result)
+    if name in ("remediation-json", "fix-json"):
+        return render_remediation_json(result)
     raise ValueError("Unsupported report format: %s" % fmt)
 
 

@@ -7,7 +7,7 @@ from .yaml_lite import parse_yaml_lite
 
 
 def load_packet(path):
-    with open(path, "r", encoding="utf-8") as handle:
+    with open(path, "r", encoding="utf-8-sig") as handle:
         text = handle.read()
     return parse_packet(text, path)
 
@@ -15,7 +15,7 @@ def load_packet(path):
 def load_rules(path):
     if not path:
         return {}
-    with open(path, "r", encoding="utf-8") as handle:
+    with open(path, "r", encoding="utf-8-sig") as handle:
         text = handle.read()
     ext = os.path.splitext(path)[1].lower()
     if ext == ".json":
@@ -24,6 +24,7 @@ def load_rules(path):
 
 
 def parse_packet(text, source_name="packet"):
+    text = text.lstrip("\ufeff")
     ext = os.path.splitext(source_name)[1].lower()
     if ext == ".json":
         data = json.loads(text)

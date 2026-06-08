@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0 - 2026-06-09
+
+- Added `remediation` Markdown output with prioritized fix tasks, owner hints, acceptance criteria, and copy-ready agent prompts.
+- Added `remediation-json` output for bots and CI queue tooling.
+- Added test and CI smoke coverage for remediation reports.
+- Expanded Chinese and English README documentation for remediation workflows.
+
 ## 0.3.0 - 2026-06-08
 
 - Added reviewed baseline JSON output for accepted gate findings.

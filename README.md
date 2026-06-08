@@ -1,6 +1,6 @@
 # agent-acceptance-gate
 
-离线 CLI，用来对一次 AI coding agent 交付做验收门禁。它读取 agent 提供的验收包、变更文件、测试结果、风险声明和规则配置，输出 Markdown、JSON、JUnit 或 SARIF 报告，并可在 CI 中用 `--check` 阻断不合格交付。
+离线 CLI，用来对一次 AI coding agent 交付做验收门禁。它读取 agent 提供的验收包、变更文件、测试结果、风险声明和规则配置，输出 Markdown、JSON、JUnit、SARIF 或 remediation 报告，并可在 CI 中用 `--check` 阻断不合格交付。
 
 本项目和 `agent-handoff-kit` 的边界很清楚：handoff 工具关注“交接包是否完整、上下文是否能传给下一个人或 agent”，`agent-acceptance-gate` 关注“这次交付能不能过团队验收门禁”。
 
@@ -12,6 +12,7 @@
 - 需要扫描验收包中的 secret 或 PII 痕迹。
 - 需要把验收结果输出为 Markdown 给人读，JSON 给系统读，JUnit 给 CI 展示，SARIF 给 GitHub Code Scanning 或安全看板消费。
 - 需要用 baseline 记录已复核的历史验收 finding，让 CI 只拦截新增 warning/error。
+- 需要把失败 finding 转成可执行的修复队列，给 Codex、Claude Code、Cursor 或内部 bot 继续处理。
 
 ## 快速开始
 
@@ -25,6 +26,8 @@ python -m agent_acceptance_gate --packet examples/acceptance-packet.json --rules
 ```bash
 agent-acceptance-gate --packet examples/acceptance-packet.md --rules examples/rules.yml --format json
 agent-acceptance-gate --packet examples/acceptance-packet.json --rules examples/rules.yml --format sarif --output reports/aag.sarif
+agent-acceptance-gate --packet examples/acceptance-packet.json --rules examples/rules.yml --format remediation --output reports/remediation.md
+agent-acceptance-gate --packet examples/acceptance-packet.json --rules examples/rules.yml --format remediation-json --output reports/remediation.json
 aag --packet examples/acceptance-packet.json --check warning
 ```
 
@@ -156,6 +159,24 @@ agent-acceptance-gate \
 
 baseline 是可审阅、可提交的 JSON 文件，包含 `rule_id`、`path`、`title`、`message` 和稳定 `fingerprint`。不要在同一个阻断型 CI run 中先生成 baseline 再扫描当前交付，否则当前 finding 会被直接放过。
 
+需要把 CI 失败交给人或 agent 继续修时，可以生成 remediation 报告：
+
+```bash
+agent-acceptance-gate \
+  --packet acceptance-packet.json \
+  --rules acceptance-rules.yml \
+  --format remediation \
+  --output reports/agent-acceptance-remediation.md
+
+agent-acceptance-gate \
+  --packet acceptance-packet.json \
+  --rules acceptance-rules.yml \
+  --format remediation-json \
+  --output reports/agent-acceptance-remediation.json
+```
+
+`remediation` 是给人读的 Markdown 修复计划；`remediation-json` 是给自动化系统、issue bot、PR 评论机器人或多 agent 调度器消费的稳定 JSON。每个任务包含 `priority`、`owner_hint`、`recommended_action`、`acceptance_criteria`、`agent_prompt` 和稳定 `fingerprint`。使用 baseline 后，已复核 finding 不会变成新的 remediation task，但 suppressed 数量仍保留在摘要里。
+
 GitHub Actions 中可以把 SARIF 上传到 Code Scanning：
 
 ```yaml
@@ -206,7 +227,29 @@ JSON：
 }
 ```
 
-JUnit 输出适合上传到 CI 测试报告视图；error 会渲染为 `<failure>`，warning 会渲染为 `<system-out>`。SARIF 输出适合把 risky path、forbidden path、敏感信息和未声明影响作为 code scanning alert 展示。使用 baseline 后，Markdown、JSON、JUnit 和 SARIF 都会保留 suppressed finding 统计或明细，方便后续清理历史例外。
+Remediation：
+
+~~~markdown
+# Agent Acceptance Remediation Plan
+
+- Status: `fail`
+- Tasks: `1`
+
+## AAG-P1-abc12345: No tests reported
+
+- Priority: `P1`
+- Owner hint: `test-owner`
+
+### Agent Prompt
+
+```text
+You are repairing an agent-acceptance-gate finding.
+Current gate status: fail (1 errors, 0 warnings).
+After the fix, rerun the exact gate command and include the result in the delivery notes.
+```
+~~~
+
+JUnit 输出适合上传到 CI 测试报告视图；error 会渲染为 `<failure>`，warning 会渲染为 `<system-out>`。SARIF 输出适合把 risky path、forbidden path、敏感信息和未声明影响作为 code scanning alert 展示。Remediation 输出适合把 finding 转成修复任务、Issue、PR 评论或下一轮 agent prompt。使用 baseline 后，Markdown、JSON、JUnit、SARIF 和 remediation 都会保留 suppressed finding 统计或明细，方便后续清理历史例外。
 
 ## 和 handoff 工具的边界
 
@@ -234,7 +277,7 @@ JUnit 输出适合上传到 CI 测试报告视图；error 会渲染为 `<failure
 
 # English
 
-`agent-acceptance-gate` is an offline CLI for acceptance-gating AI coding agent deliveries. It reads an acceptance packet, changed files, test command results, risk statements, diff summaries, and rule configuration. It emits Markdown, JSON, JUnit, or SARIF reports and supports CI blocking through `--check`.
+`agent-acceptance-gate` is an offline CLI for acceptance-gating AI coding agent deliveries. It reads an acceptance packet, changed files, test command results, risk statements, diff summaries, and rule configuration. It emits Markdown, JSON, JUnit, SARIF, or remediation reports and supports CI blocking through `--check`.
 
 It is intentionally different from `agent-handoff-kit`: handoff tooling focuses on transferring context and next steps, while this project focuses on deciding whether a delivered change passes acceptance gates.
 
@@ -246,6 +289,7 @@ It is intentionally different from `agent-handoff-kit`: handoff tooling focuses 
 - Heuristic scanning for secrets and personal data in the acceptance packet.
 - Human-readable Markdown, machine-readable JSON, CI-friendly JUnit, and GitHub Code Scanning friendly SARIF output.
 - Reviewed baselines for accepted historical gate findings, while still failing CI on new findings.
+- Remediation queues that turn failed findings into prioritized tasks, owner hints, acceptance criteria, and copy-ready agent prompts.
 
 ## Quick Start
 
@@ -259,6 +303,8 @@ Installed commands:
 ```bash
 agent-acceptance-gate --packet examples/acceptance-packet.md --rules examples/rules.yml --format json
 agent-acceptance-gate --packet examples/acceptance-packet.json --rules examples/rules.yml --format sarif --output reports/aag.sarif
+agent-acceptance-gate --packet examples/acceptance-packet.json --rules examples/rules.yml --format remediation --output reports/remediation.md
+agent-acceptance-gate --packet examples/acceptance-packet.json --rules examples/rules.yml --format remediation-json --output reports/remediation.json
 aag --packet examples/acceptance-packet.json --check warning
 ```
 
@@ -296,6 +342,24 @@ The CLI creates the output parent directory automatically.
 
 Reviewed baseline JSON files contain stable fingerprints for accepted findings. Commit or otherwise review the baseline before using it in CI; do not generate and consume a baseline in the same blocking CI run.
 
+Generate remediation reports when a failed gate should become a repair queue for a human, bot, or coding agent:
+
+```bash
+agent-acceptance-gate \
+  --packet acceptance-packet.json \
+  --rules acceptance-rules.yml \
+  --format remediation \
+  --output reports/agent-acceptance-remediation.md
+
+agent-acceptance-gate \
+  --packet acceptance-packet.json \
+  --rules acceptance-rules.yml \
+  --format remediation-json \
+  --output reports/agent-acceptance-remediation.json
+```
+
+`remediation` is a human-readable Markdown repair plan. `remediation-json` is stable structured output for issue bots, PR comments, CI queue tooling, or multi-agent schedulers. Each task includes `priority`, `owner_hint`, `recommended_action`, `acceptance_criteria`, `agent_prompt`, and the stable finding `fingerprint`. Baseline-suppressed findings do not become new remediation tasks, but their count remains visible in the summary.
+
 GitHub Actions can upload SARIF to Code Scanning:
 
 ```yaml
@@ -317,7 +381,7 @@ steps:
 
 ## Output
 
-Markdown reports summarize status, counts, findings, tests, and changed files. JSON reports provide stable structured fields for automation. JUnit reports render errors as failures and warnings as system output. SARIF reports map gate findings to code scanning results so risky paths, forbidden files, sensitive-data findings, and undeclared impacts can appear in security dashboards. Suppressed baseline findings remain visible in report metadata for audit and cleanup.
+Markdown reports summarize status, counts, findings, tests, and changed files. JSON reports provide stable structured fields for automation. JUnit reports render errors as failures and warnings as system output. SARIF reports map gate findings to code scanning results so risky paths, forbidden files, sensitive-data findings, and undeclared impacts can appear in security dashboards. Remediation reports turn findings into prioritized repair tasks with owner hints, acceptance criteria, and copy-ready prompts for another agent pass. Suppressed baseline findings remain visible in report metadata for audit and cleanup.
 
 ## Boundary with Handoff Tools
 

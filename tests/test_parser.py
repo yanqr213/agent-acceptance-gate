@@ -21,6 +21,18 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(packet.summary, "ship gate")
         self.assertEqual(packet.tests[0].command, "python -m unittest")
 
+    def test_parse_json_packet_with_utf8_bom(self):
+        packet = parse_packet("\ufeff" + json.dumps({
+            "summary": "ship gate",
+            "owner": "quality",
+            "rollback_plan": "revert change",
+            "risk_statement": "low",
+            "changed_files": ["src/app.py"],
+            "tests": [{"command": "python -m unittest", "status": "passed"}],
+        }), "packet.json")
+        self.assertEqual(packet.summary, "ship gate")
+        self.assertTrue(packet.tests[0].passed)
+
     def test_parse_yaml_lite_packet(self):
         packet = parse_packet("""
 summary: ship gate

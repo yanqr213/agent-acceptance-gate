@@ -16,7 +16,12 @@ def build_parser():
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--packet", required=True, help="Acceptance packet path: JSON, YAML-lite, or Markdown.")
     parser.add_argument("--rules", help="Rule configuration path: JSON or YAML-lite.")
-    parser.add_argument("--format", choices=["markdown", "json", "junit", "sarif"], default="markdown", help="Report format.")
+    parser.add_argument(
+        "--format",
+        choices=["markdown", "json", "junit", "sarif", "remediation", "remediation-json"],
+        default="markdown",
+        help="Report format.",
+    )
     parser.add_argument("--output", help="Write report to this path. Parent directories are created.")
     parser.add_argument("--baseline", help="JSON baseline file. Matching findings are suppressed before reporting and --check.")
     parser.add_argument("--write-baseline", help="Write a reviewed baseline JSON for current findings instead of a normal report. Use '-' for stdout.")

@@ -35,7 +35,7 @@ class CliTests(unittest.TestCase):
     def test_version(self):
         result = self.run_cli(["--version"])
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("agent-acceptance-gate 0.3.0", result.stdout)
+        self.assertIn("agent-acceptance-gate 0.4.0", result.stdout)
 
     def test_check_error_exit_code_passes_without_errors(self):
         packet = self.write_packet({
@@ -111,6 +111,32 @@ class CliTests(unittest.TestCase):
             payload = json.load(handle)
         uri = payload["runs"][0]["results"][0]["locations"][0]["physicalLocation"]["artifactLocation"]["uri"]
         self.assertEqual(uri, "service/auth/login.py")
+
+    def test_remediation_output_files(self):
+        packet = self.write_packet({
+            "summary": "Change",
+            "owner": "quality",
+            "rollback_plan": "revert",
+            "risk_statement": "low",
+            "changed_files": ["service/auth/login.py"],
+            "tests": [],
+        })
+        markdown_output = os.path.join(self.tmp, "reports", "remediation.md")
+        json_output = os.path.join(self.tmp, "reports", "remediation.json")
+
+        markdown_result = self.run_cli(["--packet", packet, "--format", "remediation", "--output", markdown_output])
+        self.assertEqual(markdown_result.returncode, 0, markdown_result.stderr)
+        with open(markdown_output, "r", encoding="utf-8") as handle:
+            text = handle.read()
+        self.assertIn("Agent Acceptance Remediation Plan", text)
+        self.assertIn("Owner hint", text)
+
+        json_result = self.run_cli(["--packet", packet, "--format", "remediation-json", "--output", json_output])
+        self.assertEqual(json_result.returncode, 0, json_result.stderr)
+        with open(json_output, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        self.assertGreaterEqual(payload["summary"]["task_count"], 1)
+        self.assertIn("agent_prompt", payload["tasks"][0])
 
 
 if __name__ == "__main__":
